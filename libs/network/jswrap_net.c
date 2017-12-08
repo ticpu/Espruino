@@ -445,9 +445,9 @@ Create a UDP socket
 */
 JsVar *jswrap_dgram_createSocket(JsVar *type, JsVar *callback) {
   NOT_USED(type);
-  JsVar *options = jsvNewObject();
+  JsVar *options = jsvIsObject(type) ? type : jsvNewObject();
   JsVar *connection = jswrap_net_connect(options, callback, ST_UDP);
-  jsvUnLock(options);
+  if (options != type) jsvUnLock(options);
   return connection;
 }
 
@@ -515,10 +515,13 @@ void jswrap_dgram_messageCallback(JsVar *parent, JsVar *msg, JsVar *rinfo) {
   "params" : [
     ["port","int32","The port to bind at"],
     ["callback","JsVar","A function(res) that will be called when the socket is bound. You can then call `res.on('message', function(message, info) { ... })` and `res.on('close', function() { ... })` to deal with the response."]
-  ]
+  ],
+  "return" : ["JsVar","The dgramSocket instance that 'bind' was called on"]
 }
 */
 JsVar *jswrap_dgramSocket_bind(JsVar *parent, unsigned short port, JsVar *callback) {
+  parent = jsvLockAgain(parent); // we're returning the parent, so need to re-lock it
+
   // FIXME: move elsewhere...
   // re-used dgramSocket instance...
   {
@@ -535,7 +538,7 @@ JsVar *jswrap_dgramSocket_bind(JsVar *parent, unsigned short port, JsVar *callba
   }
 
   jsvObjectSetChild(parent, "#onbind", callback);
-  jswrap_net_server_listen(parent, port, ST_UDP); // create bound socket
+  jsvUnLock(jswrap_net_server_listen(parent, port, ST_UDP)); // create bound socket
   jsiQueueObjectCallbacks(parent, "#onbind", &parent, 1);
 
   return parent;
@@ -654,17 +657,20 @@ https://engineering.circle.com/https-authorized-certs-with-node-js/
   "generate_full" : "jswrap_net_server_listen(parent, port, ST_NORMAL)",
   "params" : [
     ["port","int32","The port to listen on"]
-  ]
+  ],
+  "return" : ["JsVar","The HTTP server instance that 'listen' was called on"]
 }
 Start listening for new connections on the given port
 */
 
-void jswrap_net_server_listen(JsVar *parent, int port, SocketType socketType) {
+JsVar *jswrap_net_server_listen(JsVar *parent, int port, SocketType socketType) {
+  parent = jsvLockAgain(parent); // we're returning the parent, so need to re-lock it
   JsNetwork net;
-  if (!networkGetFromVarIfOnline(&net)) return;
+  if (!networkGetFromVarIfOnline(&net)) return parent;
 
   serverListen(&net, parent, (unsigned short)port, socketType);
   networkFree(&net);
+  return parent;
 }
 
 /*JSON{

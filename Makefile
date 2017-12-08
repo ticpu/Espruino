@@ -207,13 +207,13 @@ OPTIMIZEFLAGS+=-pg
 endif
 
 # These are files for platform-specific libraries
-TARGETSOURCES =
+TARGETSOURCES ?=
 
 # Files that contains objects/functions/methods that will be
 # exported to JS. The order here actually determines the order
 # objects will be matched in. So for example Pins must come
 # above ints, since a Pin is also matched as an int.
-WRAPPERSOURCES = \
+WRAPPERSOURCES += \
 src/jswrap_array.c \
 src/jswrap_arraybuffer.c \
 src/jswrap_dataview.c \
@@ -233,6 +233,7 @@ src/jswrap_onewire.c \
 src/jswrap_pipe.c \
 src/jswrap_process.c \
 src/jswrap_promise.c \
+src/jswrap_regexp.c \
 src/jswrap_serial.c \
 src/jswrap_spi_i2c.c \
 src/jswrap_stream.c \
@@ -241,7 +242,7 @@ src/jswrap_waveform.c \
 
 # it is important that _pin comes before stuff which uses
 # integers (as the check for int *includes* the chek for pin)
-SOURCES = \
+SOURCES += \
 src/jslex.c \
 src/jsflags.c \
 src/jsvar.c \
@@ -279,8 +280,12 @@ SOURCES += \
 libs/compression/compress_rle.c
 
 else
+
+ifneq ($(FAMILY),ESP8266)
 # If we have enough flash, include the debugger
+# ESP8266 can't do it because it expects tasks to finish within set time
 DEFINES+=-DUSE_DEBUGGER
+endif
 # Use use tab complete
 DEFINES+=-DUSE_TAB_COMPLETE
 
@@ -352,21 +357,21 @@ libs/graphics/lcd_arraybuffer.c \
 libs/graphics/lcd_js.c
 
 ifdef USE_LCD_SDL
-DEFINES += -DUSE_LCD_SDL
-SOURCES += libs/graphics/lcd_sdl.c
-LIBS += -lSDL
-INCLUDE += -I/usr/include/SDL
+  DEFINES += -DUSE_LCD_SDL
+  SOURCES += libs/graphics/lcd_sd/.c
+  LIBS += -lSDL
+  INCLUDE += -I/usr/include/SDL
 endif
 
 ifdef USE_LCD_FSMC
-DEFINES += -DUSE_LCD_FSMC
-SOURCES += libs/graphics/lcd_fsmc.c
+  DEFINES += -DUSE_LCD_FSMC
+  SOURCES += libs/graphics/lcd_fsmc.c
 endif
 
 endif
 
 ifdef USE_USB_HID
-DEFINES += -DUSE_USB_HID
+  DEFINES += -DUSE_USB_HID
 endif
 
 ifdef USE_NET
@@ -480,56 +485,47 @@ ifdef USE_NET
  endif
 
  ifdef USE_TELNET
- DEFINES += -DUSE_TELNET
- WRAPPERSOURCES += libs/network/telnet/jswrap_telnet.c
- INCLUDE += -I$(ROOT)/libs/network/telnet
+  DEFINES += -DUSE_TELNET
+  WRAPPERSOURCES += libs/network/telnet/jswrap_telnet.c
+  INCLUDE += -I$(ROOT)/libs/network/telnet
  endif
 endif # USE_NET
 
 ifdef USE_TV
-DEFINES += -DUSE_TV
-WRAPPERSOURCES += libs/tv/jswrap_tv.c
-INCLUDE += -I$(ROOT)/libs/tv
-SOURCES += \
-libs/tv/tv.c
+  DEFINES += -DUSE_TV
+  WRAPPERSOURCES += libs/tv/jswrap_tv.c
+  INCLUDE += -I$(ROOT)/libs/tv
+  SOURCES += \
+  libs/tv/tv.c
 endif
 
 ifdef USE_TRIGGER
-DEFINES += -DUSE_TRIGGER
-WRAPPERSOURCES += libs/trigger/jswrap_trigger.c
-INCLUDE += -I$(ROOT)/libs/trigger
-SOURCES += \
-libs/trigger/trigger.c
+  DEFINES += -DUSE_TRIGGER
+  WRAPPERSOURCES += libs/trigger/jswrap_trigger.c
+  INCLUDE += -I$(ROOT)/libs/trigger
+  SOURCES += \
+  libs/trigger/trigger.c
 endif
 
 ifdef USE_HASHLIB
-INCLUDE += -I$(ROOT)/libs/hashlib
-WRAPPERSOURCES += \
-libs/hashlib/jswrap_hashlib.c
-SOURCES += \
-libs/hashlib/sha2.c
+  INCLUDE += -I$(ROOT)/libs/hashlib
+  WRAPPERSOURCES += \
+  libs/hashlib/jswrap_hashlib.c
+  SOURCES += \
+  libs/hashlib/sha2.c
 endif
 
 ifdef USE_WIRINGPI
-DEFINES += -DUSE_WIRINGPI
-LIBS += -lwiringPi
-INCLUDE += -I/usr/local/include -L/usr/local/lib
+  DEFINES += -DUSE_WIRINGPI
+  LIBS += -lwiringPi
+  INCLUDE += -I/usr/local/include -L/usr/local/lib
 endif
 
 ifdef USE_BLUETOOTH
   DEFINES += -DBLUETOOTH
   INCLUDE += -I$(ROOT)/libs/bluetooth
   WRAPPERSOURCES += libs/bluetooth/jswrap_bluetooth.c
-endif
-
-ifeq ($(BOARD),MICROBIT)
-  INCLUDE += -I$(ROOT)/libs/microbit
-  WRAPPERSOURCES += libs/microbit/jswrap_microbit.c
-endif
-
-ifeq ($(BOARD),PUCKJS)
-  INCLUDE += -I$(ROOT)/libs/puckjs
-  WRAPPERSOURCES += libs/puckjs/jswrap_puck.c
+  SOURCES += libs/bluetooth/bluetooth_utils.c
 endif
 
 ifdef USE_CRYPTO
@@ -604,21 +600,12 @@ ifdef USE_NUCLEO
   WRAPPERSOURCES += targets/nucleo/jswrap_nucleo.c
 endif
 
-ifdef USE_HEXBADGE
-  INCLUDE += -I$(ROOT)/libs/hexbadge
-  WRAPPERSOURCES += libs/hexbadge/jswrap_hexbadge.c
-endif
-
 ifdef USE_WIO_LTE
   INCLUDE += -I$(ROOT)/libs/wio_lte
   WRAPPERSOURCES += libs/wio_lte/jswrap_wio_lte.c
   SOURCES += targets/stm32/stm32_ws2812b_driver.c
 endif
 
-
-ifdef WICED
-  WRAPPERSOURCES += targets/emw3165/jswrap_emw3165.c
-endif
 
 endif # BOOTLOADER ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ DON'T USE STUFF ABOVE IN BOOTLOADER
 
@@ -788,7 +775,7 @@ endif
 
 clean:
 	@echo Cleaning targets
-	$(Q)find . -name \*.o | grep -v arm-bcm2708 | xargs rm -f
+	$(Q)find . -name \*.o | grep -v "./arm-bcm2708\|./gcc-arm-none-eabi" | xargs rm -f
 	$(Q)rm -f $(ROOT)/gen/*.c $(ROOT)/gen/*.h $(ROOT)/gen/*.ld
 	$(Q)rm -f $(ROOT)/scripts/*.pyc $(ROOT)/boards/*.pyc
 	$(Q)rm -f $(PROJ_NAME).elf

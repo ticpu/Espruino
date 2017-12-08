@@ -34,11 +34,11 @@ BITFIELD_DECL(jshPinStateIsManual, JSH_PIN_COUNT);
 
 bool jshIsPinValid(Pin pin) {
   // Note, PIN_UNDEFINED is always > JSH_PIN_COUNT
-  return pin < JSH_PIN_COUNT && pinInfo[pin].port != JSH_PORT_NONE;
+  return pin < JSH_PIN_COUNT && (pinInfo[pin].port&JSH_PORT_MASK) != JSH_PORT_NONE;
 }
 
 Pin jshGetPinFromString(const char *s) {
-  if ((s[0]>='A' && s[0]<='H') && s[1]) {
+  if ((s[0]>='A' && s[0]<='I') && s[1]) {
     int port = JSH_PORTA+s[0]-'A';
     int pin = -1;
     if (s[1]>='0' && s[1]<='9') {
@@ -56,7 +56,7 @@ Pin jshGetPinFromString(const char *s) {
 #ifdef PIN_NAMES_DIRECT
       int i;
       for (i=0;i<JSH_PIN_COUNT;i++)
-        if (pinInfo[i].port == port && pinInfo[i].pin==pin)
+        if ((pinInfo[i].port&JSH_PORT_MASK) == port && pinInfo[i].pin==pin)
           return (Pin)i;
 #else
       if (port == JSH_PORTA) {
@@ -83,6 +83,10 @@ Pin jshGetPinFromString(const char *s) {
       } else if (port == JSH_PORTH) {
         if (pin<JSH_PORTH_COUNT) return (Pin)(JSH_PORTH_OFFSET + pin);
 #endif
+#if JSH_PORTI_OFFSET!=-1
+      } else if (port == JSH_PORTI) {
+        if (pin<JSH_PORTI_COUNT) return (Pin)(JSH_PORTI_OFFSET + pin);
+#endif
       }
 #endif
     }
@@ -96,7 +100,7 @@ void jshGetPinString(char *result, Pin pin) {
   result[0] = 0; // just in case
 #ifdef PIN_NAMES_DIRECT
   if (jshIsPinValid(pin)) {
-    result[0] = (char)('A'+pinInfo[pin].port-JSH_PORTA);
+    result[0] = (char)('A'+(pinInfo[pin].port&JSH_PORT_MASK)-JSH_PORTA);
     itostr(pinInfo[pin].pin-JSH_PIN0,&result[1],10);
 #else
     if (
@@ -134,6 +138,11 @@ void jshGetPinString(char *result, Pin pin) {
     } else if (pin>=JSH_PORTH_OFFSET && pin<JSH_PORTH_OFFSET+JSH_PORTH_COUNT) {
       result[0]='H';
       itostr(pin-JSH_PORTH_OFFSET,&result[1],10);
+#endif
+#if JSH_PORTI_OFFSET!=-1
+    } else if (pin>=JSH_PORTI_OFFSET && pin<JSH_PORTI_OFFSET+JSH_PORTI_COUNT) {
+      result[0]='I';
+      itostr(pin-JSH_PORTI_OFFSET,&result[1],10);
 #endif
 #endif
     } else {

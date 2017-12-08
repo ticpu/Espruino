@@ -50,6 +50,26 @@ something that was not possible with `onInit`.
  */
 
 /*JSON{
+  "type" : "event",
+  "class" : "E",
+  "name" : "errorFlag",
+  "params" : [
+    ["errorFlags","JsVar","An array of new error flags, as would be returned by `E.getErrorFlags()`. Error flags that were present before won't be reported."]
+  ]
+}
+This event is called when an error is created by Espruino itself (rather
+than JS code) which changes the state of the error flags reported by
+`E.getErrorFlags()`
+
+This could be low memory, full buffers, UART overflow, etc. `E.getErrorFlags()`
+has a full description of each type of error.
+
+This event will only be emitted when error flag is set. If the error
+flag was already set nothing will be emitted. To clear error flags
+so that you do get a callback each time a flag is set, call `E.getErrorFlags()`.
+*/
+
+/*JSON{
   "type" : "staticmethod",
   "class" : "E",
   "name" : "getTemperature",
@@ -211,7 +231,7 @@ JsVarFloat jswrap_espruino_sum(JsVar *arr) {
   JsVarFloat sum = 0;
 
   JsvIterator itsrc;
-  jsvIteratorNew(&itsrc, arr);
+  jsvIteratorNew(&itsrc, arr, JSIF_DEFINED_ARRAY_ElEMENTS);
   while (jsvIteratorHasElement(&itsrc)) {
     sum += jsvIteratorGetFloatValue(&itsrc);
     jsvIteratorNext(&itsrc);
@@ -242,7 +262,7 @@ JsVarFloat jswrap_espruino_variance(JsVar *arr, JsVarFloat mean) {
   JsVarFloat variance = 0;
 
   JsvIterator itsrc;
-  jsvIteratorNew(&itsrc, arr);
+  jsvIteratorNew(&itsrc, arr, JSIF_EVERY_ARRAY_ELEMENT);
   while (jsvIteratorHasElement(&itsrc)) {
     JsVarFloat val = jsvIteratorGetFloatValue(&itsrc);
     val -= mean;
@@ -277,9 +297,9 @@ JsVarFloat jswrap_espruino_convolve(JsVar *arr1, JsVar *arr2, int offset) {
   JsVarFloat conv = 0;
 
   JsvIterator it1;
-  jsvIteratorNew(&it1, arr1);
+  jsvIteratorNew(&it1, arr1, JSIF_EVERY_ARRAY_ELEMENT);
   JsvIterator it2;
-  jsvIteratorNew(&it2, arr2);
+  jsvIteratorNew(&it2, arr2, JSIF_EVERY_ARRAY_ELEMENT);
 
   // get iterator2 at the correct offset
   int l = (int)jsvGetLength(arr2);
@@ -296,7 +316,7 @@ JsVarFloat jswrap_espruino_convolve(JsVar *arr1, JsVar *arr2, int offset) {
     // restart iterator if it hit the end
     if (!jsvIteratorHasElement(&it2)) {
       jsvIteratorFree(&it2);
-      jsvIteratorNew(&it2, arr2);
+      jsvIteratorNew(&it2, arr2, JSIF_EVERY_ARRAY_ELEMENT);
     }
   }
   jsvIteratorFree(&it1);
@@ -422,7 +442,7 @@ void jswrap_espruino_FFT(JsVar *arrReal, JsVar *arrImag, bool inverse) {
   unsigned int i;
   // load data
   JsvIterator it;
-  jsvIteratorNew(&it, arrReal);
+  jsvIteratorNew(&it, arrReal, JSIF_EVERY_ARRAY_ELEMENT);
   i=0;
   while (jsvIteratorHasElement(&it)) {
     vReal[i++] = jsvIteratorGetFloatValue(&it);
@@ -434,7 +454,7 @@ void jswrap_espruino_FFT(JsVar *arrReal, JsVar *arrImag, bool inverse) {
 
   i=0;
   if (jsvIsIterable(arrImag)) {
-    jsvIteratorNew(&it, arrImag);
+    jsvIteratorNew(&it, arrImag, JSIF_EVERY_ARRAY_ELEMENT);
     while (i<pow2 && jsvIteratorHasElement(&it)) {
       vImag[i++] = jsvIteratorGetFloatValue(&it);
       jsvIteratorNext(&it);
@@ -451,7 +471,7 @@ void jswrap_espruino_FFT(JsVar *arrReal, JsVar *arrImag, bool inverse) {
   // If we had imaginary data then DON'T modulus the result
   bool useModulus = !jsvIsIterable(arrImag);
 
-  jsvIteratorNew(&it, arrReal);
+  jsvIteratorNew(&it, arrReal, JSIF_EVERY_ARRAY_ELEMENT);
   i=0;
   while (jsvIteratorHasElement(&it)) {
     JsVarFloat f;
@@ -466,7 +486,7 @@ void jswrap_espruino_FFT(JsVar *arrReal, JsVar *arrImag, bool inverse) {
   }
   jsvIteratorFree(&it);
   if (jsvIsIterable(arrImag)) {
-    jsvIteratorNew(&it, arrImag);
+    jsvIteratorNew(&it, arrImag, JSIF_EVERY_ARRAY_ELEMENT);
     i=0;
     while (jsvIteratorHasElement(&it)) {
       jsvUnLock(jsvIteratorSetValue(&it, jsvNewFromFloat(vImag[i++])));
@@ -654,13 +674,13 @@ Get and reset the error flags. Returns an array that can contain:
 
 `'BUFFER_FULL'`: A buffer for a stream filled up and characters were lost. This can happen to any stream - Serial,HTTP,etc.
 
-`'CALLBACK'`: A callback (s`etWatch`, `setInterval`, `on('data',...)`) caused an error and so was removed.
+`'CALLBACK'`: A callback (`setWatch`, `setInterval`, `on('data',...)`) caused an error and so was removed.
 
 `'LOW_MEMORY'`: Memory is running low - Espruino had to run a garbage collection pass or remove some of the command history
 
 `'MEMORY'`: Espruino ran out of memory and was unable to allocate some data that it needed.
 
-`'JSERR_UART_OVERFLOW'` : A UART received data but it was not read in time and was lost
+`'UART_OVERFLOW'` : A UART received data but it was not read in time and was lost
  */
 JsVar *jswrap_espruino_getErrorFlags() {
   JsErrorFlags flags = jsErrorFlags;
@@ -680,6 +700,7 @@ Get Espruino's interpreter flags that control the way it handles your JavaScript
 
 * `deepSleep` - Allow deep sleep modes (also set by setDeepSleep)
 * `pretokenise` - When adding functions, pre-minify them and tokenise reserved words
+* `unsafeFlash` - Some platforms stop writes/erases to interpreter memory to stop you bricking the device accidentally - this removes that protection
 */
 /*JSON{
   "type" : "staticmethod",
@@ -789,7 +810,7 @@ JsVar *jswrap_espruino_toUint8Array(JsVar *args) {
     ["addr","int","The address of the memory area"],
     ["len","int","The length (in bytes) of the memory area"]
   ],
-  "return" : ["JsVar","A Uint8Array"],
+  "return" : ["JsVar","A String"],
   "return_object" : "String"
 }
 This creates and returns a special type of string, which actually references
@@ -1014,6 +1035,37 @@ JsVar *jswrap_espruino_getSizeOf(JsVar *v, int depth) {
     return arr;
   }
   return jsvNewFromInteger((JsVarInt)jsvCountJsVarsUsed(v));
+}
+
+
+/*JSON{
+  "type" : "staticmethod",
+  "ifndef" : "SAVE_ON_FLASH",
+  "class" : "E",
+  "name" : "getAddressOf",
+  "generate" : "jswrap_espruino_getAddressOf",
+  "params" : [
+    ["v","JsVar","A variable to get the address of"],
+    ["flatAddress","bool","If a flat String or flat ArrayBuffer is supplied, return the address of the data inside it - otherwise 0"]
+  ],
+  "return" : ["int","The address of the given variable"]
+}
+Return the address in memory of the given variable. This can then
+be used with `peek` and `poke` functions. However, changing data in
+JS variables directly (flatAddress=false) will most likely result in a crash.
+
+This functions exists to allow embedded targets to set up
+peripherals such as DMA so that they write directly to
+JS variables.
+
+See http://www.espruino.com/Internals for more information
+ */
+JsVarInt jswrap_espruino_getAddressOf(JsVar *v, bool flatAddress) {
+  if (flatAddress) {
+    size_t len=0;
+    return (JsVarInt)(size_t)jsvGetDataPointer(v, &len);
+  }
+  return (JsVarInt)(size_t)v;
 }
 
 /*JSON{
