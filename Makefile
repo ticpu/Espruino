@@ -705,7 +705,6 @@ $(WRAPPERFILE): scripts/build_jswrapper.py $(WRAPPERSOURCES)
 	$(Q)echo WRAPPERSOURCES = $(WRAPPERSOURCES)
 	$(Q)echo DEFINES =  $(DEFINES)
 	$(Q)python scripts/build_jswrapper.py $(WRAPPERSOURCES) $(DEFINES) -B$(BOARD) -F$(WRAPPERFILE)
-
 ifdef PININFOFILE
 $(PININFOFILE).c $(PININFOFILE).h: scripts/build_pininfo.py
 	@echo Generating pin info
@@ -771,6 +770,7 @@ endif	    # ---------------------------------------------------
 else # NO_COMPILE
 # log WRAPPERSOURCES to help Firmware creation tool
 $(info WRAPPERSOURCES=$(WRAPPERSOURCES));
+$(info DEFINES=$(DEFINES));
 endif
 
 clean:

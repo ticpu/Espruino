@@ -15,6 +15,9 @@
 #ifndef BLUETOOTH_H
 #define BLUETOOTH_H
 
+#include "jsutils.h"
+#include "jsvar.h"
+
 #ifdef NRF5X
 #include "ble.h"
 #include "ble_advdata.h"
